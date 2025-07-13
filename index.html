@@ -12,7 +12,7 @@
         frame-src 'self' https://*.firebaseapp.com;
     ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Hub v3.3 | Lukman & Destry</title>
+    <title>Life Hub v3.4 | Lukman & Destry</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -59,6 +59,18 @@
         html.dark .status-both { background: linear-gradient(135deg, #2b6cb0 50%, #97266d 50%); }
 
         #mobile-menu-overlay { transition: opacity 0.3s ease-in-out; }
+
+        /* Horizontal Scroll for Score Cards on Mobile */
+        .score-card-container {
+            display: grid;
+            grid-template-columns: repeat(1, 1fr);
+            gap: 1rem;
+        }
+        @media (min-width: 768px) {
+            .score-card-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 overflow-x-hidden">
@@ -154,11 +166,11 @@
             <div class="p-4 md:p-6 lg:p-8">
                 <section id="dashboard" class="content-section space-y-6">
                     <h1 class="text-3xl font-bold hidden lg:block">Dashboard: Ringkasan Hidup</h1>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><h3 class="font-semibold text-gray-500 dark:text-gray-400">Saldo Keuangan</h3><p id="dashboard-saldo" class="text-3xl font-bold text-green-500 mt-2">Rp 0</p></div>
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><h3 class="font-semibold text-gray-500 dark:text-gray-400">Total Tabungan</h3><p id="dashboard-tabungan" class="text-3xl font-bold text-blue-500 mt-2">Rp 0</p></div>
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><h3 class="font-semibold text-gray-500 dark:text-gray-400">Mood Hari Ini</h3><p id="dashboard-mood" class="text-4xl mt-2">😶</p></div>
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><h3 class="font-semibold text-gray-500 dark:text-gray-400">Habit Selesai (Hari Ini)</h3><p id="dashboard-habit-completion" class="text-3xl font-bold mt-2">0%</p></div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center"><h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Saldo</h3><p id="dashboard-saldo" class="text-2xl font-bold text-green-500 mt-1">Rp 0</p></div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center"><h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Tabungan</h3><p id="dashboard-tabungan" class="text-2xl font-bold text-blue-500 mt-1">Rp 0</p></div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center"><h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Mood</h3><p id="dashboard-mood" class="text-3xl mt-1">😶</p></div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center"><h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Habit</h3><p id="dashboard-habit-completion" class="text-2xl font-bold mt-1">0%</p></div>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><h3 class="font-semibold mb-4">Grafik Pemasukan vs Pengeluaran (Bulan Ini)</h3><canvas id="incomeExpenseChart"></canvas></div>
@@ -174,7 +186,7 @@
                 </section>
                 <section id="keuangan" class="content-section">
                     <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold hidden lg:block">Keuangan Harian</h1><button onclick="openModal('modal-transaksi')" class="bg-blue-500 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-600 transition fixed bottom-20 right-5 z-20 lg:static lg:bottom-auto lg:right-auto"><i class="fa-solid fa-plus"></i><span class="hidden lg:inline ml-2">Tambah</span></button></div>
-                    <div id="keuangan-score-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></div>
+                    <div id="keuangan-score-cards" class="score-card-container mb-6"></div>
                     <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md mb-6 flex flex-wrap gap-4 items-center">
                         <div><label for="filter-bulan" class="text-sm font-medium">Filter Bulan:</label><input type="month" id="filter-bulan" class="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2"></div>
                         <div class="flex-grow"><label for="filter-pasangan" class="text-sm font-medium">Filter Pasangan:</label><select id="filter-pasangan" class="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-2"><option value="semua">Semua</option><option value="Lukman">Lukman</option><option value="Destry">Destry</option></select></div>
@@ -183,7 +195,7 @@
                 </section>
                 <section id="tabungan" class="content-section">
                     <div class="flex justify-between items-center mb-6"><h1 class="text-3xl font-bold hidden lg:block">Target Tabungan</h1><button onclick="openModal('modal-tabungan')" class="bg-green-500 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600 transition fixed bottom-20 right-5 z-20 lg:static lg:bottom-auto lg:right-auto"><i class="fa-solid fa-plus"></i><span class="hidden lg:inline ml-2">Tambah</span></button></div>
-                    <div id="tabungan-score-cards" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"></div>
+                    <div id="tabungan-score-cards" class="score-card-container mb-6"></div>
                     <div id="savings-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
                 </section>
                 <section id="diary" class="content-section">
@@ -218,14 +230,14 @@
                 </section>
                 <section id="individu" class="content-section">
                     <h1 class="text-3xl font-bold hidden lg:block mb-6">Ringkasan Individu</h1>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border-l-4 border-blue-500">
+                    <div class="space-y-8">
+                        <div>
                             <h2 class="text-2xl font-bold text-blue-500 mb-4">Lukman</h2>
-                            <div id="summary-individu-lukman" class="space-y-3"><p>Memuat data...</p></div>
+                            <div id="summary-individu-lukman" class="score-card-container"></div>
                         </div>
-                        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border-l-4 border-pink-500">
+                        <div>
                             <h2 class="text-2xl font-bold text-pink-500 mb-4">Destry</h2>
-                            <div id="summary-individu-destry" class="space-y-3"><p>Memuat data...</p></div>
+                            <div id="summary-individu-destry" class="score-card-container"></div>
                         </div>
                     </div>
                 </section>
@@ -851,7 +863,7 @@
                 // Main cards
                 const saldo = transactions.reduce((acc, t) => t.kategori === 'Pemasukan' ? acc + t.jumlah : acc - t.jumlah, 0);
                 document.getElementById('dashboard-saldo').textContent = formatCurrency(saldo);
-                document.getElementById('dashboard-saldo').className = `text-3xl font-bold mt-2 ${saldo >= 0 ? 'text-green-500' : 'text-red-500'}`;
+                document.getElementById('dashboard-saldo').className = `text-2xl font-bold mt-1 ${saldo >= 0 ? 'text-green-500' : 'text-red-500'}`;
                 const totalTabungan = savings.reduce((acc, s) => acc + s.terkumpul, 0);
                 document.getElementById('dashboard-tabungan').textContent = formatCurrency(totalTabungan);
                 const todayISO = getTodayISO();
@@ -934,10 +946,22 @@
                         }
                     });
                     document.getElementById(containerId).innerHTML = `
-                        <p><strong>Total Pengeluaran:</strong> <span class="text-red-500">${formatCurrency(pengeluaran)}</span></p>
-                        <p><strong>Total Pemasukan:</strong> <span class="text-green-500">${formatCurrency(pemasukan)}</span></p>
-                        <p><strong>Total Entri Diary:</strong> ${diaryCount}</p>
-                        <p><strong>Total Habit Selesai:</strong> ${habitsDone}</p>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Pemasukan</h3>
+                            <p class="text-2xl font-bold text-green-500 mt-1">${formatCurrency(pemasukan)}</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Pengeluaran</h3>
+                            <p class="text-2xl font-bold text-red-500 mt-1">${formatCurrency(pengeluaran)}</p>
+                        </div>
+                        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Entri Diary</h3>
+                            <p class="text-2xl font-bold text-purple-500 mt-1">${diaryCount}</p>
+                        </div>
+                         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Habit Selesai</h3>
+                            <p class="text-2xl font-bold text-indigo-500 mt-1">${habitsDone}</p>
+                        </div>
                     `;
                 };
                 renderSummaryFor('Lukman', 'summary-individu-lukman');
