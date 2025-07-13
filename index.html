@@ -12,7 +12,7 @@
         frame-src 'self' https://*.firebaseapp.com;
     ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Hub v2.8 (Diagnostic) | Lukman & Destry</title>
+    <title>Life Hub v2.9 | Lukman & Destry</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -298,11 +298,41 @@
                 }
             };
 
-            function setupAuthEventListeners() {
+            function setupAllEventListeners() {
+                // Auth View Toggling
                 document.getElementById('show-register-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-view').style.display = 'none'; document.getElementById('register-view').style.display = 'block'; document.getElementById('auth-error').textContent = ''; });
                 document.getElementById('show-login-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('register-view').style.display = 'none'; document.getElementById('login-view').style.display = 'block'; document.getElementById('auth-error').textContent = ''; });
+                
+                // Forms
                 document.getElementById('login-form').addEventListener('submit', handleLogin);
                 document.getElementById('register-form').addEventListener('submit', handleRegister);
+                document.getElementById('logout-btn').addEventListener('click', handleLogout);
+                document.getElementById('create-hub-btn').addEventListener('click', createHub);
+                document.getElementById('join-hub-form').addEventListener('submit', joinHub);
+                document.getElementById('form-transaksi').addEventListener('submit', handleTransaksiSubmit);
+                document.getElementById('form-tabungan').addEventListener('submit', handleTabunganSubmit);
+                document.getElementById('form-tambah-dana').addEventListener('submit', handleTambahDanaSubmit);
+                document.getElementById('form-diary').addEventListener('submit', handleDiarySubmit);
+                document.getElementById('form-habit').addEventListener('submit', handleHabitSubmit);
+                document.getElementById('form-wishlist').addEventListener('submit', handleWishlistSubmit);
+                document.getElementById('form-aktivitas').addEventListener('submit', handleAktivitasSubmit);
+                
+                // UI Elements
+                document.getElementById('filter-bulan').value = new Date().toISOString().slice(0, 7);
+                document.getElementById('filter-bulan').addEventListener('change', renderKeuangan);
+                document.getElementById('filter-pasangan').addEventListener('change', renderKeuangan);
+                document.getElementById('habit-prev-month').addEventListener('click', () => changeHabitMonth(-1));
+                document.getElementById('habit-next-month').addEventListener('click', () => changeHabitMonth(1));
+                document.getElementById('prev-month').addEventListener('click', () => changeCalendarMonth(-1));
+                document.getElementById('next-month').addEventListener('click', () => changeCalendarMonth(1));
+                setupImagePreview('diary-foto', 'diary-foto-preview');
+                setupImagePreview('wishlist-foto', 'wishlist-foto-preview');
+                document.querySelectorAll('.modal-backdrop').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal.id); }));
+                document.getElementById('theme-toggle').addEventListener('click', () => {
+                    const isDark = !document.documentElement.classList.contains('dark');
+                    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                    applyTheme(isDark);
+                });
             }
 
             onAuthStateChanged(auth, async (user) => {
@@ -326,7 +356,6 @@
             
             function initializeAppUI() {
                 setupNavigation();
-                setupAppEventListeners();
                 setupTheme();
                 navigateTo('dashboard');
                 attachRealtimeListeners();
@@ -385,9 +414,8 @@
             window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
 
             function setupTheme() {
-                const themeToggle = document.getElementById('theme-toggle');
-                const toggleIcon = themeToggle.querySelector('i');
-                const toggleText = themeToggle.querySelector('span');
+                const toggleIcon = document.querySelector('#theme-toggle i');
+                const toggleText = document.querySelector('#theme-toggle span');
                 const applyTheme = (isDark) => {
                     document.documentElement.classList.toggle('dark', isDark);
                     toggleIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
@@ -396,44 +424,13 @@
                 };
                 const currentTheme = localStorage.getItem('theme');
                 applyTheme(currentTheme === 'dark');
-                themeToggle.addEventListener('click', () => {
-                    const isDark = !document.documentElement.classList.contains('dark');
-                    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                    applyTheme(isDark);
-                });
             }
             
-            function setupAppEventListeners() {
-                document.getElementById('logout-btn').addEventListener('click', handleLogout);
-                document.getElementById('create-hub-btn').addEventListener('click', createHub);
-                document.getElementById('join-hub-form').addEventListener('submit', joinHub);
-                document.getElementById('form-transaksi').addEventListener('submit', handleTransaksiSubmit);
-                document.getElementById('form-tabungan').addEventListener('submit', handleTabunganSubmit);
-                document.getElementById('form-tambah-dana').addEventListener('submit', handleTambahDanaSubmit);
-                document.getElementById('form-diary').addEventListener('submit', handleDiarySubmit);
-                document.getElementById('form-habit').addEventListener('submit', handleHabitSubmit);
-                document.getElementById('form-wishlist').addEventListener('submit', handleWishlistSubmit);
-                document.getElementById('form-aktivitas').addEventListener('submit', handleAktivitasSubmit);
-                document.getElementById('filter-bulan').value = new Date().toISOString().slice(0, 7);
-                document.getElementById('filter-bulan').addEventListener('change', renderKeuangan);
-                document.getElementById('filter-pasangan').addEventListener('change', renderKeuangan);
-                document.getElementById('habit-prev-month').addEventListener('click', () => changeHabitMonth(-1));
-                document.getElementById('habit-next-month').addEventListener('click', () => changeHabitMonth(1));
-                document.getElementById('prev-month').addEventListener('click', () => changeCalendarMonth(-1));
-                document.getElementById('next-month').addEventListener('click', () => changeCalendarMonth(1));
-                setupImagePreview('diary-foto', 'diary-foto-preview');
-                setupImagePreview('wishlist-foto', 'wishlist-foto-preview');
-                document.querySelectorAll('.modal-backdrop').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal.id); }));
-            }
-
             async function handleLogin(e) { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; try { await signInWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Login Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
             async function handleRegister(e) { e.preventDefault(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; if (password.length < 6) { errorEl.textContent = "Password minimal 6 karakter."; return; } try { await createUserWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Register Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
             async function handleLogout() { if(confirm('Anda yakin ingin logout?')) await signOut(auth); }
             async function createHub() { 
-                if (!currentUser) {
-                    alert("Error: Pengguna tidak ditemukan (currentUser is null). Silakan coba login ulang.");
-                    return;
-                }
+                if (!currentUser) { alert("Error: Pengguna tidak ditemukan. Silakan coba login ulang."); return; }
                 const hubId = doc(collection(db, 'hubs')).id; 
                 try { 
                     const batch = writeBatch(db); 
@@ -442,17 +439,19 @@
                     await batch.commit(); 
                 } catch (error) { 
                     console.error("Create Hub Error:", error); 
-                    alert(`Gagal membuat hub. Pesan error dari Firebase: ${error.message}`);
+                    alert(`Gagal membuat hub. Error: ${error.message}`);
                     document.getElementById('hub-error').textContent = `Error: ${error.code}`; 
                 } 
             }
-            async function joinHub(e) { e.preventDefault(); const hubId = document.getElementById('join-hub-id').value.trim(); if (!hubId) return; const hubRef = doc(db, "hubs", hubId); const hubSnap = await getDoc(hubRef); if (hubSnap.exists()) { try { const members = hubSnap.data().members || []; if (members.includes(currentUser.uid)) {} else { await updateDoc(hubRef, { members: [...members, currentUser.uid] }); } await setDoc(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); currentHubId = hubId; initializeAppUI(); } catch (error) { console.error("Join Hub Error:", error); document.getElementById('hub-error').textContent = "Gagal bergabung dengan hub."; } } else { document.getElementById('hub-error').textContent = "ID Hub tidak ditemukan."; } }
+            async function joinHub(e) { e.preventDefault(); const hubId = document.getElementById('join-hub-id').value.trim(); if (!hubId) return; const hubRef = doc(db, "hubs", hubId); const hubSnap = await getDoc(hubRef); if (hubSnap.exists()) { try { const members = hubSnap.data().members || []; if (members.includes(currentUser.uid)) {} else { await updateDoc(hubRef, { members: [...members, currentUser.uid] }); } await setDoc(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); } catch (error) { console.error("Join Hub Error:", error); document.getElementById('hub-error').textContent = "Gagal bergabung dengan hub."; } } else { document.getElementById('hub-error').textContent = "ID Hub tidak ditemukan."; } }
             
             window.copyHubId = () => { const hubId = document.getElementById('profile-hub-id').textContent; navigator.clipboard.writeText(hubId).then(() => alert('ID Hub disalin!')); };
             function changeHabitMonth(delta) { habitDate.setMonth(habitDate.getMonth() + delta); renderHabitTable(); }
             function changeCalendarMonth(delta) { calendarDate.setMonth(calendarDate.getMonth() + delta); renderCalendar(); }
             
-            // --- FULLY IMPLEMENTED FUNCTIONS ---
+            // --- ALL FUNCTIONS ARE NOW FULLY IMPLEMENTED ---
+            // The rest of the functions (renderKeuangan, handleTransaksiSubmit, etc.) are complete
+            // and follow the same patterns as the previous version. They are included here for completeness.
             async function renderKeuangan() {
                 if (!currentHubId) return;
                 const monthFilter = document.getElementById('filter-bulan').value;
@@ -809,7 +808,7 @@
             }
 
             // Initial setup
-            setupAuthEventListeners();
+            setupAllEventListeners();
         }
 
         document.addEventListener('DOMContentLoaded', mainApp);
