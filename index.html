@@ -12,7 +12,7 @@
         frame-src 'self' https://*.firebaseapp.com;
     ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Hub v3.6 | Lukman & Destry</title>
+    <title>Life Hub v3.7 | Lukman & Destry</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -59,7 +59,17 @@
         html.dark .status-both { background: linear-gradient(135deg, #2b6cb0 50%, #97266d 50%); }
 
         #mobile-menu-overlay { transition: opacity 0.3s ease-in-out; }
-        
+
+        .score-card-container {
+            display: grid;
+            grid-template-columns: repeat(1, 1fr);
+            gap: 1rem;
+        }
+        @media (min-width: 768px) {
+            .score-card-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
         .nav-link.has-notification::after {
             content: '';
             position: absolute;
@@ -453,7 +463,19 @@
                 };
                 Object.keys(collectionsToRender).forEach(col => {
                     const q = query(collection(db, "hubs", currentHubId, col));
-                    const unsubscribe = onSnapshot(q, () => {
+                    const unsubscribe = onSnapshot(q, (snapshot) => {
+                        // In-app notification logic
+                        if (col === 'notifications') {
+                            snapshot.docChanges().forEach((change) => {
+                                if (change.type === "added") {
+                                    const newNotif = change.doc.data();
+                                    const recipientName = currentUser.email.split('@')[0].toLowerCase() === 'lukman' ? 'Lukman' : 'Destry';
+                                    if (newNotif.recipient.toLowerCase() === recipientName.toLowerCase() && newNotif.sender !== recipientName) {
+                                        alert(`Pesan Baru dari ${newNotif.sender}:\n\n"${newNotif.message}"`);
+                                    }
+                                }
+                            });
+                        }
                         collectionsToRender[col].forEach(fn => fn());
                     }, (error) => { console.error(`Error listening to ${col}:`, error); });
                     unsubscribeListeners.push(unsubscribe);
@@ -978,20 +1000,20 @@
                     });
                     document.getElementById(containerId).innerHTML = `
                         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
-                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Pemasukan</h3>
-                            <p class="text-2xl font-bold text-green-500 mt-1">${formatCurrency(pemasukan)}</p>
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Pemasukan</h3>
+                            <p class="text-xl md:text-2xl font-bold text-green-500 mt-1">${formatCurrency(pemasukan)}</p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
-                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Pengeluaran</h3>
-                            <p class="text-2xl font-bold text-red-500 mt-1">${formatCurrency(pengeluaran)}</p>
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Pengeluaran</h3>
+                            <p class="text-xl md:text-2xl font-bold text-red-500 mt-1">${formatCurrency(pengeluaran)}</p>
                         </div>
                         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
-                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Entri Diary</h3>
-                            <p class="text-2xl font-bold text-purple-500 mt-1">${diaryCount}</p>
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Entri Diary</h3>
+                            <p class="text-xl md:text-2xl font-bold text-purple-500 mt-1">${diaryCount}</p>
                         </div>
                          <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md text-center">
-                            <h3 class="font-semibold text-gray-500 dark:text-gray-400">Habit Selesai</h3>
-                            <p class="text-2xl font-bold text-indigo-500 mt-1">${habitsDone}</p>
+                            <h3 class="font-semibold text-gray-500 dark:text-gray-400 text-sm">Habit Selesai</h3>
+                            <p class="text-xl md:text-2xl font-bold text-indigo-500 mt-1">${habitsDone}</p>
                         </div>
                     `;
                 };
