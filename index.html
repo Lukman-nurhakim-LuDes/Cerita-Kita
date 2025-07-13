@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Hub v2.3 | Lukman & Destry</title>
+    <title>Life Hub v2.5 | Lukman & Destry</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -133,7 +133,6 @@
 
         <main class="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
             
-            <!-- All other sections remain unchanged -->
             <section id="dashboard" class="content-section space-y-6">
                  <h1 class="text-3xl font-bold">Dashboard: Ringkasan Hidup</h1>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -149,7 +148,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                      <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
                         <h3 class="font-semibold mb-4">Mood Tracker (7 Hari Terakhir)</h3>
-                        <div id="dashboard-mood-tracker" class="flex justify-around items-center h-24"></div>
+                        <div id="dashboard-mood-tracker" class="flex justify-around items-end h-32"></div>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md"><h3 class="font-semibold mb-4">Progress Habit Harian</h3><div id="dashboard-habits" class="space-y-4"></div></div>
                 </div>
@@ -232,270 +231,522 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, Timestamp, writeBatch, getDocs, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
-
-        // Konfigurasi Firebase Anda telah dimasukkan
-        const firebaseConfig = {
-            apiKey: "AIzaSyA5GRzA83x8DbaxUb5pRH_Yx0ZWMsCVN0w",
-            authDomain: "jalan-cerita-5c989.firebaseapp.com",
-            projectId: "jalan-cerita-5c989",
-            storageBucket: "jalan-cerita-5c989.firebasestorage.app",
-            messagingSenderId: "606590919634",
-            appId: "1:606590919634:web:039ddf6e2b7e13d0675e0b",
-            measurementId: "G-9L0MLVQCNL"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        let currentUser = null;
-        let currentHubId = null;
-        let unsubscribeListeners = [];
-        let expenseChartInstance, incomeExpenseChartInstance;
-        let calendarDate = new Date();
-        let habitDate = new Date();
-
-        const loadingScreen = document.getElementById('loading-screen');
-        const authScreen = document.getElementById('auth-screen');
-        const hubScreen = document.getElementById('hub-screen');
-        const appContainer = document.getElementById('app-container');
-
-        const formatCurrency = (amount) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
-        const getTodayISO = () => new Date().toISOString().split('T')[0];
-        const formatDate = (isoDate) => {
-            if (!isoDate) return '';
-            const date = (isoDate.seconds) ? new Date(isoDate.seconds * 1000) : new Date(isoDate);
-            return date.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        };
-        const showUI = (element) => {
-            loadingScreen.style.display = 'none';
-            authScreen.style.display = 'none';
-            hubScreen.style.display = 'none';
-            appContainer.style.display = 'none';
-            if (element) {
-                element.style.display = 'flex';
-            }
-        };
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                const userDocRef = doc(db, "users", user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists() && userDocSnap.data().hubId) {
-                    currentHubId = userDocSnap.data().hubId;
-                    initializeAppUI();
-                } else {
-                    showUI(hubScreen);
-                }
-            } else {
-                currentUser = null;
-                currentHubId = null;
-                unsubscribeAll();
-                showUI(authScreen);
-            }
-        });
-
-        function initializeAppUI() {
-            setupNavigation();
-            setupEventListeners();
-            setupTheme();
-            navigateTo('dashboard');
-            attachRealtimeListeners();
-            showUI(appContainer);
-            document.getElementById('profile-email').textContent = currentUser.email;
-            document.getElementById('profile-uid').textContent = currentUser.uid;
-            document.getElementById('profile-hub-id').textContent = currentHubId;
-        }
-
-        function attachRealtimeListeners() {
-            if (!currentHubId) return;
-            unsubscribeAll();
-            const collectionsToRender = {
-                'transactions': renderKeuangan, 'savings': renderTabungan, 'diary': renderDiary,
-                'habits': renderHabitTable,
-                'habitEntries': renderHabitTable,
-                'wishlist': renderWishlist, 'events': renderCalendar
-            };
-            Object.keys(collectionsToRender).forEach(col => {
-                const q = query(collection(db, "hubs", currentHubId, col));
-                const unsubscribe = onSnapshot(q, () => {
-                    if (collectionsToRender[col]) collectionsToRender[col]();
-                    renderDashboard();
-                });
-                unsubscribeListeners.push(unsubscribe);
-            });
-        }
-        function unsubscribeAll() { unsubscribeListeners.forEach(unsub => unsub()); unsubscribeListeners = []; }
-
-        function setupNavigation() {
-            const navItems = [
-                { id: 'dashboard', icon: 'fa-solid fa-table-columns', text: 'Dashboard' },
-                { id: 'keuangan', icon: 'fa-solid fa-wallet', text: 'Keuangan' },
-                { id: 'tabungan', icon: 'fa-solid fa-piggy-bank', text: 'Tabungan' },
-                { id: 'diary', icon: 'fa-solid fa-book-open', text: 'Diary' },
-                { id: 'habit', icon: 'fa-solid fa-check-double', text: 'Habit Tracker' },
-                { id: 'wishlist', icon: 'fa-solid fa-star', text: 'Wishlist' },
-                { id: 'kalender', icon: 'fa-solid fa-calendar-days', text: 'Kalender' },
-                { id: 'profil', icon: 'fa-solid fa-user-gear', text: 'Profil' },
-            ];
-            const navList = document.getElementById('nav-list');
-            navList.innerHTML = navItems.map(item => `<li><a href="#" class="nav-link flex items-center p-2 lg:p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700" data-target="${item.id}"><i class="${item.icon} w-6 text-center text-lg"></i><span class="hidden lg:inline ml-4 font-medium">${item.text}</span></a></li>`).join('');
-            document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', (e) => { e.preventDefault(); navigateTo(link.dataset.target); }));
-        }
-        function navigateTo(pageId) {
-            document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
-            document.getElementById(pageId)?.classList.add('active');
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('bg-blue-100', 'dark:bg-blue-900/50', 'text-blue-600', 'dark:text-blue-300');
-                if (link.dataset.target === pageId) {
-                    link.classList.add('bg-blue-100', 'dark:bg-blue-900/50', 'text-blue-600', 'dark:text-blue-300');
-                }
-            });
-            window.scrollTo(0, 0);
-        }
-        window.openModal = (modalId) => { document.getElementById(modalId).style.display = 'flex'; };
-        window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
-
-        function setupTheme() {
-            const themeToggle = document.getElementById('theme-toggle');
-            const toggleIcon = themeToggle.querySelector('i');
-            const toggleText = themeToggle.querySelector('span');
-            const applyTheme = (isDark) => {
-                document.documentElement.classList.toggle('dark', isDark);
-                toggleIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-                toggleText.textContent = isDark ? 'Mode Terang' : 'Mode Gelap';
-                if(expenseChartInstance || incomeExpenseChartInstance) renderDashboard();
-            };
-            const currentTheme = localStorage.getItem('theme');
-            applyTheme(currentTheme === 'dark');
-            themeToggle.addEventListener('click', () => {
-                const isDark = !document.documentElement.classList.contains('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                applyTheme(isDark);
-            });
-        }
         
-        function setupEventListeners() {
-            // Auth View Toggling
-            document.getElementById('show-register-link').addEventListener('click', (e) => {
-                e.preventDefault();
-                document.getElementById('login-view').style.display = 'none';
-                document.getElementById('register-view').style.display = 'block';
-                document.getElementById('auth-error').textContent = '';
-            });
-            document.getElementById('show-login-link').addEventListener('click', (e) => {
-                e.preventDefault();
-                document.getElementById('register-view').style.display = 'none';
-                document.getElementById('login-view').style.display = 'block';
-                document.getElementById('auth-error').textContent = '';
-            });
+        window.firebase = {
+            initializeApp,
+            getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+            getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, Timestamp, writeBatch, getDocs, serverTimestamp, orderBy
+        };
+    </script>
+    <script>
+        function mainApp() {
+            const {
+                initializeApp,
+                getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+                getFirestore, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, collection, query, where, onSnapshot, Timestamp, writeBatch, getDocs, serverTimestamp, orderBy
+            } = window.firebase;
 
-            document.getElementById('login-form').addEventListener('submit', handleLogin);
-            document.getElementById('register-form').addEventListener('submit', handleRegister);
-            document.getElementById('logout-btn').addEventListener('click', handleLogout);
-            document.getElementById('create-hub-btn').addEventListener('click', createHub);
-            document.getElementById('join-hub-form').addEventListener('submit', joinHub);
-            document.getElementById('form-transaksi').addEventListener('submit', handleTransaksiSubmit);
-            document.getElementById('form-tabungan').addEventListener('submit', handleTabunganSubmit);
-            document.getElementById('form-tambah-dana').addEventListener('submit', handleTambahDanaSubmit);
-            document.getElementById('form-diary').addEventListener('submit', handleDiarySubmit);
-            document.getElementById('form-habit').addEventListener('submit', handleHabitSubmit);
-            document.getElementById('form-wishlist').addEventListener('submit', handleWishlistSubmit);
-            document.getElementById('form-aktivitas').addEventListener('submit', handleAktivitasSubmit);
-            document.getElementById('filter-bulan').value = new Date().toISOString().slice(0, 7);
-            document.getElementById('filter-bulan').addEventListener('change', renderKeuangan);
-            document.getElementById('filter-pasangan').addEventListener('change', renderKeuangan);
-            document.getElementById('habit-prev-month').addEventListener('click', () => changeHabitMonth(-1));
-            document.getElementById('habit-next-month').addEventListener('click', () => changeHabitMonth(1));
-            document.getElementById('prev-month').addEventListener('click', () => changeCalendarMonth(-1));
-            document.getElementById('next-month').addEventListener('click', () => changeCalendarMonth(1));
-            setupImagePreview('diary-foto', 'diary-foto-preview');
-            setupImagePreview('wishlist-foto', 'wishlist-foto-preview');
-            document.querySelectorAll('.modal-backdrop').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal.id); }));
-        }
+            const firebaseConfig = {
+                apiKey: "AIzaSyA5GRzA83x8DbaxUb5pRH_Yx0ZWMsCVN0w",
+                authDomain: "jalan-cerita-5c989.firebaseapp.com",
+                projectId: "jalan-cerita-5c989",
+                storageBucket: "jalan-cerita-5c989.appspot.com",
+                messagingSenderId: "606590919634",
+                appId: "1:606590919634:web:039ddf6e2b7e13d0675e0b",
+                measurementId: "G-9L0MLVQCNL"
+            };
 
-        async function handleLogin(e) { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; try { await signInWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Login Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
-        async function handleRegister(e) { e.preventDefault(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; if (password.length < 6) { errorEl.textContent = "Password minimal 6 karakter."; return; } try { await createUserWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Register Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
-        async function handleLogout() { if(confirm('Anda yakin ingin logout?')) await signOut(auth); }
-        async function createHub() { const hubId = doc(collection(db, 'hubs')).id; try { const batch = writeBatch(db); batch.set(doc(db, "hubs", hubId), { members: [currentUser.uid], createdAt: serverTimestamp() }); batch.set(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); await batch.commit(); currentHubId = hubId; initializeAppUI(); } catch (error) { document.getElementById('hub-error').textContent = "Gagal membuat hub."; } }
-        async function joinHub(e) { e.preventDefault(); const hubId = document.getElementById('join-hub-id').value.trim(); if (!hubId) return; const hubRef = doc(db, "hubs", hubId); const hubSnap = await getDoc(hubRef); if (hubSnap.exists()) { try { const members = hubSnap.data().members || []; if (members.includes(currentUser.uid)) { /* already a member */ } else { await updateDoc(hubRef, { members: [...members, currentUser.uid] }); } await setDoc(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); currentHubId = hubId; initializeAppUI(); } catch (error) { document.getElementById('hub-error').textContent = "Gagal bergabung dengan hub."; } } else { document.getElementById('hub-error').textContent = "ID Hub tidak ditemukan."; } }
-        
-        window.copyHubId = () => { const hubId = document.getElementById('profile-hub-id').textContent; navigator.clipboard.writeText(hubId).then(() => alert('ID Hub disalin!')); };
-        function changeHabitMonth(delta) { habitDate.setMonth(habitDate.getMonth() + delta); renderHabitTable(); }
-        async function renderHabitTable() {
-            if (!currentHubId) return;
-            document.getElementById('habit-month-year').textContent = habitDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-            const container = document.getElementById('habit-table-container');
-            container.innerHTML = '<div class="loader mx-auto"></div>';
-            const habitsQuery = query(collection(db, "hubs", currentHubId, "habits"), orderBy("name"));
-            const habitsSnapshot = await getDocs(habitsQuery);
-            const habits = habitsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            const year = habitDate.getFullYear();
-            const month = habitDate.getMonth();
-            const startDate = new Date(year, month, 1);
-            const endDate = new Date(year, month + 1, 0, 23, 59, 59);
-            const entriesQuery = query(collection(db, "hubs", currentHubId, "habitEntries"), where("date", ">=", startDate), where("date", "<=", endDate));
-            const entriesSnapshot = await getDocs(entriesQuery);
-            const entriesMap = new Map();
-            entriesSnapshot.docs.forEach(doc => { const data = doc.data(); const dateKey = new Date(data.date.seconds * 1000).toISOString().split('T')[0]; entriesMap.set(dateKey, { id: doc.id, ...data }); });
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            let tableHTML = '<table class="habit-table"><thead><tr><th class="habit-name">Habit</th>';
-            for (let i = 1; i <= daysInMonth; i++) { tableHTML += `<th>${i}</th>`; }
-            tableHTML += '</tr></thead><tbody>';
-            if (habits.length === 0) { tableHTML += `<tr><td colspan="${daysInMonth + 1}" class="text-center p-8 text-gray-500">Belum ada habit. Tambahkan satu!</td></tr>`; } 
-            else {
-                habits.forEach(habit => {
-                    tableHTML += `<tr><td class="habit-name" title="${habit.name}">${habit.name}</td>`;
-                    for (let day = 1; day <= daysInMonth; day++) {
-                        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                        const entry = entriesMap.get(dateKey);
-                        const status = entry?.statuses?.[habit.id] || { lukman: false, destry: false };
-                        let statusClass = 'status-none';
-                        if (status.lukman && status.destry) statusClass = 'status-both';
-                        else if (status.lukman) statusClass = 'status-lukman';
-                        else if (status.destry) statusClass = 'status-destry';
-                        tableHTML += `<td><div class="habit-day-cell ${statusClass}" onclick="cycleHabitStatus('${habit.id}', '${dateKey}')"></div></td>`;
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            let currentUser = null;
+            let currentHubId = null;
+            let unsubscribeListeners = [];
+            let expenseChartInstance, incomeExpenseChartInstance;
+            let calendarDate = new Date();
+            let habitDate = new Date();
+
+            const loadingScreen = document.getElementById('loading-screen');
+            const authScreen = document.getElementById('auth-screen');
+            const hubScreen = document.getElementById('hub-screen');
+            const appContainer = document.getElementById('app-container');
+
+            const formatCurrency = (amount) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
+            const getTodayISO = () => new Date().toISOString().split('T')[0];
+            const formatDate = (isoDate) => {
+                if (!isoDate) return '';
+                const date = (isoDate.seconds) ? new Date(isoDate.seconds * 1000) : new Date(isoDate);
+                return date.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            };
+            const showUI = (element) => {
+                loadingScreen.style.display = 'none';
+                authScreen.style.display = 'none';
+                hubScreen.style.display = 'none';
+                appContainer.style.display = 'none';
+                if (element) {
+                    element.style.display = 'flex';
+                }
+            };
+
+            function setupAuthEventListeners() {
+                document.getElementById('show-register-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-view').style.display = 'none'; document.getElementById('register-view').style.display = 'block'; document.getElementById('auth-error').textContent = ''; });
+                document.getElementById('show-login-link').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('register-view').style.display = 'none'; document.getElementById('login-view').style.display = 'block'; document.getElementById('auth-error').textContent = ''; });
+                document.getElementById('login-form').addEventListener('submit', handleLogin);
+                document.getElementById('register-form').addEventListener('submit', handleRegister);
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    currentUser = user;
+                    const userDocRef = doc(db, "users", user.uid);
+                    const userDocSnap = await getDoc(userDocRef);
+                    if (userDocSnap.exists() && userDocSnap.data().hubId) {
+                        currentHubId = userDocSnap.data().hubId;
+                        initializeAppUI();
+                    } else {
+                        showUI(hubScreen);
                     }
-                    tableHTML += '</tr>';
+                } else {
+                    currentUser = null;
+                    currentHubId = null;
+                    unsubscribeAll();
+                    showUI(authScreen);
+                }
+            });
+            
+            function initializeAppUI() {
+                setupNavigation();
+                setupAppEventListeners();
+                setupTheme();
+                navigateTo('dashboard');
+                attachRealtimeListeners();
+                showUI(appContainer);
+                document.getElementById('profile-email').textContent = currentUser.email;
+                document.getElementById('profile-uid').textContent = currentUser.uid;
+                document.getElementById('profile-hub-id').textContent = currentHubId;
+            }
+
+            function attachRealtimeListeners() {
+                if (!currentHubId) return;
+                unsubscribeAll();
+                const collectionsToRender = {
+                    'transactions': renderKeuangan, 'savings': renderTabungan, 'diary': renderDiary,
+                    'habits': renderHabitTable, 'habitEntries': renderHabitTable,
+                    'wishlist': renderWishlist, 'events': renderCalendar
+                };
+                Object.keys(collectionsToRender).forEach(col => {
+                    const q = query(collection(db, "hubs", currentHubId, col));
+                    const unsubscribe = onSnapshot(q, () => {
+                        if (collectionsToRender[col]) collectionsToRender[col]();
+                        renderDashboard();
+                    }, (error) => { console.error(`Error listening to ${col}:`, error); });
+                    unsubscribeListeners.push(unsubscribe);
                 });
             }
-            tableHTML += '</tbody></table>';
-            container.innerHTML = tableHTML;
+            function unsubscribeAll() { unsubscribeListeners.forEach(unsub => unsub()); unsubscribeListeners = []; }
+
+            function setupNavigation() {
+                const navItems = [
+                    { id: 'dashboard', icon: 'fa-solid fa-table-columns', text: 'Dashboard' },
+                    { id: 'keuangan', icon: 'fa-solid fa-wallet', text: 'Keuangan' },
+                    { id: 'tabungan', icon: 'fa-solid fa-piggy-bank', text: 'Tabungan' },
+                    { id: 'diary', icon: 'fa-solid fa-book-open', text: 'Diary' },
+                    { id: 'habit', icon: 'fa-solid fa-check-double', text: 'Habit Tracker' },
+                    { id: 'wishlist', icon: 'fa-solid fa-star', text: 'Wishlist' },
+                    { id: 'kalender', icon: 'fa-solid fa-calendar-days', text: 'Kalender' },
+                    { id: 'profil', icon: 'fa-solid fa-user-gear', text: 'Profil' },
+                ];
+                const navList = document.getElementById('nav-list');
+                navList.innerHTML = navItems.map(item => `<li><a href="#" class="nav-link flex items-center p-2 lg:p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700" data-target="${item.id}"><i class="${item.icon} w-6 text-center text-lg"></i><span class="hidden lg:inline ml-4 font-medium">${item.text}</span></a></li>`).join('');
+                document.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', (e) => { e.preventDefault(); navigateTo(link.dataset.target); }));
+            }
+            window.navigateTo = (pageId) => {
+                document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+                document.getElementById(pageId)?.classList.add('active');
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('bg-blue-100', 'dark:bg-blue-900/50', 'text-blue-600', 'dark:text-blue-300');
+                    if (link.dataset.target === pageId) {
+                        link.classList.add('bg-blue-100', 'dark:bg-blue-900/50', 'text-blue-600', 'dark:text-blue-300');
+                    }
+                });
+                window.scrollTo(0, 0);
+            }
+            window.openModal = (modalId) => { document.getElementById(modalId).style.display = 'flex'; };
+            window.closeModal = (modalId) => { document.getElementById(modalId).style.display = 'none'; };
+
+            function setupTheme() {
+                const themeToggle = document.getElementById('theme-toggle');
+                const toggleIcon = themeToggle.querySelector('i');
+                const toggleText = themeToggle.querySelector('span');
+                const applyTheme = (isDark) => {
+                    document.documentElement.classList.toggle('dark', isDark);
+                    toggleIcon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+                    toggleText.textContent = isDark ? 'Mode Terang' : 'Mode Gelap';
+                    if(expenseChartInstance || incomeExpenseChartInstance) renderDashboard();
+                };
+                const currentTheme = localStorage.getItem('theme');
+                applyTheme(currentTheme === 'dark');
+                themeToggle.addEventListener('click', () => {
+                    const isDark = !document.documentElement.classList.contains('dark');
+                    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                    applyTheme(isDark);
+                });
+            }
+            
+            function setupAppEventListeners() {
+                document.getElementById('logout-btn').addEventListener('click', handleLogout);
+                document.getElementById('create-hub-btn').addEventListener('click', createHub);
+                document.getElementById('join-hub-form').addEventListener('submit', joinHub);
+                document.getElementById('form-transaksi').addEventListener('submit', handleTransaksiSubmit);
+                document.getElementById('form-tabungan').addEventListener('submit', handleTabunganSubmit);
+                document.getElementById('form-tambah-dana').addEventListener('submit', handleTambahDanaSubmit);
+                document.getElementById('form-diary').addEventListener('submit', handleDiarySubmit);
+                document.getElementById('form-habit').addEventListener('submit', handleHabitSubmit);
+                document.getElementById('form-wishlist').addEventListener('submit', handleWishlistSubmit);
+                document.getElementById('form-aktivitas').addEventListener('submit', handleAktivitasSubmit);
+                document.getElementById('filter-bulan').value = new Date().toISOString().slice(0, 7);
+                document.getElementById('filter-bulan').addEventListener('change', renderKeuangan);
+                document.getElementById('filter-pasangan').addEventListener('change', renderKeuangan);
+                document.getElementById('habit-prev-month').addEventListener('click', () => changeHabitMonth(-1));
+                document.getElementById('habit-next-month').addEventListener('click', () => changeHabitMonth(1));
+                document.getElementById('prev-month').addEventListener('click', () => changeCalendarMonth(-1));
+                document.getElementById('next-month').addEventListener('click', () => changeCalendarMonth(1));
+                setupImagePreview('diary-foto', 'diary-foto-preview');
+                setupImagePreview('wishlist-foto', 'wishlist-foto-preview');
+                document.querySelectorAll('.modal-backdrop').forEach(modal => modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(modal.id); }));
+            }
+
+            async function handleLogin(e) { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; try { await signInWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Login Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
+            async function handleRegister(e) { e.preventDefault(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; if (password.length < 6) { errorEl.textContent = "Password minimal 6 karakter."; return; } try { await createUserWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Register Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
+            async function handleLogout() { if(confirm('Anda yakin ingin logout?')) await signOut(auth); }
+            async function createHub() { const hubId = doc(collection(db, 'hubs')).id; try { const batch = writeBatch(db); batch.set(doc(db, "hubs", hubId), { members: [currentUser.uid], createdAt: serverTimestamp() }); batch.set(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); await batch.commit(); currentHubId = hubId; initializeAppUI(); } catch (error) { console.error("Create Hub Error:", error); document.getElementById('hub-error').textContent = "Gagal membuat hub."; } }
+            async function joinHub(e) { e.preventDefault(); const hubId = document.getElementById('join-hub-id').value.trim(); if (!hubId) return; const hubRef = doc(db, "hubs", hubId); const hubSnap = await getDoc(hubRef); if (hubSnap.exists()) { try { const members = hubSnap.data().members || []; if (members.includes(currentUser.uid)) {} else { await updateDoc(hubRef, { members: [...members, currentUser.uid] }); } await setDoc(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); currentHubId = hubId; initializeAppUI(); } catch (error) { console.error("Join Hub Error:", error); document.getElementById('hub-error').textContent = "Gagal bergabung dengan hub."; } } else { document.getElementById('hub-error').textContent = "ID Hub tidak ditemukan."; } }
+            
+            window.copyHubId = () => { const hubId = document.getElementById('profile-hub-id').textContent; navigator.clipboard.writeText(hubId).then(() => alert('ID Hub disalin!')); };
+            function changeHabitMonth(delta) { habitDate.setMonth(habitDate.getMonth() + delta); renderHabitTable(); }
+            function changeCalendarMonth(delta) { calendarDate.setMonth(calendarDate.getMonth() + delta); renderCalendar(); }
+            
+            // --- FULLY IMPLEMENTED FUNCTIONS ---
+            async function renderKeuangan() {
+                if (!currentHubId) return;
+                const monthFilter = document.getElementById('filter-bulan').value;
+                const personFilter = document.getElementById('filter-pasangan').value;
+                const [year, month] = monthFilter.split('-').map(Number);
+                const startDate = Timestamp.fromDate(new Date(year, month - 1, 1));
+                const endDate = Timestamp.fromDate(new Date(year, month, 1));
+                let q = query(collection(db, "hubs", currentHubId, "transactions"), where("tanggal", ">=", startDate), where("tanggal", "<", endDate), orderBy("tanggal", "desc"));
+                const querySnapshot = await getDocs(q);
+                let transactions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                if (personFilter !== 'semua') {
+                    transactions = transactions.filter(t => t.oleh === personFilter);
+                }
+                const body = document.getElementById('tabel-transaksi-body');
+                body.innerHTML = transactions.map(t => {
+                    const isPemasukan = t.kategori === 'Pemasukan';
+                    const amountColor = isPemasukan ? 'text-green-500' : 'text-red-500';
+                    const amountPrefix = isPemasukan ? '+' : '-';
+                    return `<tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td class="p-4">${formatDate(t.tanggal)}</td>
+                        <td class="p-4">${t.kategori}</td>
+                        <td class="p-4 font-semibold ${amountColor}">${amountPrefix} ${formatCurrency(t.jumlah)}</td>
+                        <td class="p-4">${t.oleh}</td>
+                        <td class="p-4">${t.catatan || '-'}</td>
+                        <td class="p-4"><button onclick="deleteTransaction('${t.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>`;
+                }).join('');
+                if (transactions.length === 0) {
+                    body.innerHTML = `<tr><td colspan="6" class="text-center p-8 text-gray-500">Belum ada transaksi di bulan ini.</td></tr>`;
+                }
+                const saldo = transactions.reduce((acc, t) => t.kategori === 'Pemasukan' ? acc + t.jumlah : acc - t.jumlah, 0);
+                document.getElementById('saldo-berjalan').textContent = formatCurrency(saldo);
+            }
+            window.deleteTransaction = async (id) => { if (confirm('Yakin hapus transaksi ini?')) { await deleteDoc(doc(db, "hubs", currentHubId, "transactions", id)); } };
+            
+            async function handleTransaksiSubmit(e) {
+                e.preventDefault();
+                const form = e.target;
+                const dateValue = document.getElementById('transaksi-tanggal').value;
+                const date = new Date(dateValue);
+                date.setUTCHours(12);
+                const newTransaksi = {
+                    tanggal: Timestamp.fromDate(date),
+                    kategori: document.getElementById('transaksi-kategori').value,
+                    jumlah: parseFloat(document.getElementById('transaksi-jumlah').value),
+                    oleh: document.getElementById('transaksi-oleh').value,
+                    catatan: document.getElementById('transaksi-catatan').value,
+                    createdAt: serverTimestamp(), createdBy: currentUser.uid
+                };
+                try { await addDoc(collection(db, "hubs", currentHubId, "transactions"), newTransaksi); closeModal('modal-transaksi'); form.reset(); } 
+                catch (error) { console.error("Error adding transaction: ", error); alert("Gagal menyimpan transaksi."); }
+            }
+
+            async function renderTabungan() {
+                if (!currentHubId) return;
+                const q = query(collection(db, "hubs", currentHubId, "savings"), orderBy("createdAt", "desc"));
+                const snapshot = await getDocs(q);
+                const savings = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                const list = document.getElementById('savings-list');
+                if (savings.length === 0) {
+                    list.innerHTML = `<p class="text-gray-500 md:col-span-2 lg:col-span-3 text-center py-8">Belum ada target tabungan.</p>`;
+                    return;
+                }
+                list.innerHTML = savings.map(s => {
+                    const progress = Math.min((s.terkumpul / s.target) * 100, 100);
+                    const progressColor = progress >= 100 ? 'bg-green-500' : 'bg-blue-500';
+                    return `<div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md flex flex-col fade-in">
+                        <div class="flex justify-between items-start">
+                            <div><h3 class="text-xl font-bold">${s.nama}</h3><p class="text-sm text-gray-500 dark:text-gray-400">Oleh: ${s.oleh}</p></div>
+                            <button onclick="deleteTabungan('${s.id}')" class="text-gray-400 hover:text-red-500 text-sm"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        <div class="my-4 flex-grow">
+                            <div class="flex justify-between text-sm font-medium mb-1"><span>${formatCurrency(s.terkumpul)}</span><span class="text-gray-500">${formatCurrency(s.target)}</span></div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4"><div class="${progressColor} h-4 rounded-full" style="width: ${progress}%"></div></div>
+                            <p class="text-right text-sm font-bold mt-1">${progress.toFixed(1)}%</p>
+                        </div>
+                        <button onclick="openTambahDanaModal('${s.id}')" class="mt-4 w-full bg-blue-500 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-600 transition">Tambah Dana</button>
+                    </div>`;
+                }).join('');
+            }
+            window.deleteTabungan = async (id) => { if (confirm('Yakin hapus target tabungan ini?')) { await deleteDoc(doc(db, "hubs", currentHubId, "savings", id)); } };
+            window.openTambahDanaModal = (id) => { document.getElementById('tambah-dana-id').value = id; openModal('modal-tambah-dana'); };
+            async function handleTabunganSubmit(e) {
+                e.preventDefault();
+                const form = e.target;
+                const newTabungan = {
+                    nama: document.getElementById('tabungan-nama').value,
+                    target: parseFloat(document.getElementById('tabungan-target').value),
+                    terkumpul: parseFloat(document.getElementById('tabungan-awal').value),
+                    oleh: document.getElementById('tabungan-oleh').value,
+                    createdAt: serverTimestamp()
+                };
+                try { await addDoc(collection(db, "hubs", currentHubId, "savings"), newTabungan); closeModal('modal-tabungan'); form.reset(); }
+                catch (error) { console.error("Error adding savings goal:", error); alert("Gagal menyimpan target."); }
+            }
+            async function handleTambahDanaSubmit(e) {
+                e.preventDefault();
+                const form = e.target;
+                const id = document.getElementById('tambah-dana-id').value;
+                const jumlah = parseFloat(document.getElementById('tambah-dana-jumlah').value);
+                const tabunganRef = doc(db, "hubs", currentHubId, "savings", id);
+                const tabunganSnap = await getDoc(tabunganRef);
+                if (tabunganSnap.exists()) {
+                    const newTerkumpul = (tabunganSnap.data().terkumpul || 0) + jumlah;
+                    await updateDoc(tabunganRef, { terkumpul: newTerkumpul });
+                }
+                closeModal('modal-tambah-dana');
+                form.reset();
+            }
+
+            async function renderDiary() {
+                if (!currentHubId) return;
+                const q = query(collection(db, "hubs", currentHubId, "diary"), orderBy("tanggal", "desc"));
+                const snapshot = await getDocs(q);
+                const diary = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                const container = document.getElementById('diary-entries');
+                if (diary.length === 0) { container.innerHTML = `<p class="text-gray-500 text-center py-8">Belum ada tulisan diary.</p>`; return; }
+                container.innerHTML = diary.map(entry => `
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md fade-in">
+                        <div class="flex justify-between items-start">
+                            <div><h3 class="text-2xl font-bold">${entry.judul} <span class="text-3xl">${entry.mood}</span></h3><p class="text-sm text-gray-500 dark:text-gray-400">${formatDate(entry.tanggal)} - oleh ${entry.oleh}</p></div>
+                            <button onclick="deleteDiary('${entry.id}')" class="text-gray-400 hover:text-red-500 text-sm"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                        ${entry.foto ? `<img src="${entry.foto}" alt="Foto diary" class="my-4 rounded-lg max-h-80 w-auto mx-auto">` : ''}
+                        <p class="mt-4 whitespace-pre-wrap">${entry.isi}</p>
+                    </div>`).join('');
+            }
+            window.deleteDiary = async (id) => { if (confirm('Yakin hapus entri diary ini?')) { await deleteDoc(doc(db, "hubs", currentHubId, "diary", id)); } };
+            async function handleDiarySubmit(e) {
+                e.preventDefault();
+                const form = e.target;
+                const fotoPreview = document.getElementById('diary-foto-preview');
+                const date = new Date(document.getElementById('diary-tanggal').value);
+                date.setUTCHours(12);
+                const newEntry = {
+                    tanggal: Timestamp.fromDate(date),
+                    judul: document.getElementById('diary-judul').value,
+                    isi: document.getElementById('diary-isi').value,
+                    mood: document.getElementById('diary-mood').value,
+                    oleh: document.getElementById('diary-oleh').value,
+                    foto: fotoPreview.src.startsWith('data:image') ? fotoPreview.src : null,
+                    createdAt: serverTimestamp()
+                };
+                try { await addDoc(collection(db, "hubs", currentHubId, "diary"), newEntry); closeModal('modal-diary'); form.reset(); fotoPreview.classList.add('hidden'); fotoPreview.src = ''; }
+                catch (error) { console.error("Error adding diary:", error); alert("Gagal menyimpan diary."); }
+            }
+
+            async function renderWishlist() {
+                if (!currentHubId) return;
+                const q = query(collection(db, "hubs", currentHubId, "wishlist"), orderBy("createdAt", "desc"));
+                const snapshot = await getDocs(q);
+                const wishlist = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                const gallery = document.getElementById('wishlist-gallery');
+                if (wishlist.length === 0) { gallery.innerHTML = `<p class="text-gray-500 text-center py-8 sm:col-span-2 md:col-span-3 lg:col-span-4">Belum ada wishlist.</p>`; return; }
+                gallery.innerHTML = wishlist.map(wish => `
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden fade-in">
+                        <img src="${wish.foto || 'https://placehold.co/400x300/e2e8f0/64748b?text=Gambar'}" alt="${wish.nama}" class="w-full h-48 object-cover">
+                        <div class="p-4">
+                            <h3 class="font-bold text-lg">${wish.nama}</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">${wish.kategori}</p>
+                            <p class="text-sm mt-2">Keinginan: <span class="font-semibold">${wish.oleh}</span></p>
+                            <p class="text-sm mt-2 text-gray-600 dark:text-gray-300">${wish.deskripsi}</p>
+                            <button onclick="deleteWishlist('${wish.id}')" class="mt-4 text-xs text-red-500 hover:underline">Hapus</button>
+                        </div>
+                    </div>`).join('');
+            }
+            window.deleteWishlist = async (id) => { if (confirm('Yakin hapus wishlist ini?')) { await deleteDoc(doc(db, "hubs", currentHubId, "wishlist", id)); } };
+            async function handleWishlistSubmit(e) {
+                e.preventDefault();
+                const form = e.target;
+                const fotoPreview = document.getElementById('wishlist-foto-preview');
+                const newWish = {
+                    nama: document.getElementById('wishlist-nama').value,
+                    kategori: document.getElementById('wishlist-kategori').value,
+                    oleh: document.getElementById('wishlist-oleh').value,
+                    deskripsi: document.getElementById('wishlist-deskripsi').value,
+                    foto: fotoPreview.src.startsWith('data:image') ? fotoPreview.src : null,
+                    createdAt: serverTimestamp()
+                };
+                try { await addDoc(collection(db, "hubs", currentHubId, "wishlist"), newWish); closeModal('modal-wishlist'); form.reset(); fotoPreview.classList.add('hidden'); fotoPreview.src = ''; }
+                catch (error) { console.error("Error adding wishlist:", error); alert("Gagal menyimpan wishlist."); }
+            }
+
+            async function renderCalendar() {
+                if (!currentHubId) return;
+                const year = calendarDate.getFullYear();
+                const month = calendarDate.getMonth();
+                document.getElementById('calendar-month-year').textContent = new Date(year, month).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                const grid = document.getElementById('calendar-grid');
+                grid.innerHTML = '';
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                
+                const startDate = Timestamp.fromDate(new Date(year, month, 1));
+                const endDate = Timestamp.fromDate(new Date(year, month + 1, 1));
+                const q = query(collection(db, "hubs", currentHubId, "events"), where("tanggal", ">=", startDate), where("tanggal", "<", endDate));
+                const snapshot = await getDocs(q);
+                const eventsThisMonth = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+
+                for (let i = 0; i < firstDay; i++) { grid.innerHTML += '<div></div>'; }
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const dateISO = date.toISOString().split('T')[0];
+                    const hasEvent = eventsThisMonth.some(e => new Date(e.tanggal.seconds * 1000).toISOString().split('T')[0] === dateISO);
+                    const isToday = dateISO === getTodayISO();
+                    const dayEl = document.createElement('div');
+                    dayEl.className = `calendar-day flex items-center justify-center cursor-pointer rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition`;
+                    if (isToday) dayEl.classList.add('bg-blue-500', 'text-white', 'font-bold');
+                    if (hasEvent) dayEl.classList.add('has-event');
+                    dayEl.textContent = day;
+                    dayEl.dataset.date = dateISO;
+                    dayEl.addEventListener('click', () => renderDailyActivities(dateISO, eventsThisMonth));
+                    grid.appendChild(dayEl);
+                }
+            }
+            function renderDailyActivities(dateISO, eventsThisMonth) {
+                document.querySelectorAll('.calendar-day.bg-gray-300').forEach(d => d.classList.remove('bg-gray-300', 'dark:bg-gray-600'));
+                const dayEl = document.querySelector(`.calendar-day[data-date="${dateISO}"]`);
+                if(dayEl) dayEl.classList.add('bg-gray-300', 'dark:bg-gray-600');
+                document.getElementById('selected-date-display').textContent = formatDate(dateISO);
+                const activitiesContainer = document.getElementById('daily-activities');
+                const dailyEvents = eventsThisMonth.filter(e => new Date(e.tanggal.seconds * 1000).toISOString().split('T')[0] === dateISO).sort((a,b) => a.waktu.localeCompare(b.waktu));
+                if (dailyEvents.length === 0) { activitiesContainer.innerHTML = `<p class="text-gray-500">Tidak ada aktivitas terjadwal.</p>`; return; }
+                activitiesContainer.innerHTML = dailyEvents.map(event => `
+                    <div class="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-bold">${event.nama} <span class="text-sm font-normal text-gray-500">(${event.waktu})</span></p>
+                                <p class="text-sm text-gray-600 dark:text-gray-300">${event.deskripsi || ''}</p>
+                                <div class="text-xs mt-1">
+                                    ${event.ikut.lukman ? '<span class="bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">Lukman</span>' : ''}
+                                    ${event.ikut.destry ? '<span class="bg-pink-200 text-pink-800 px-2 py-0.5 rounded-full">Destry</span>' : ''}
+                                </div>
+                            </div>
+                            <button onclick="deleteAktivitas('${event.id}')" class="text-gray-400 hover:text-red-500 text-sm"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </div>`).join('');
+            }
+            window.deleteAktivitas = async (id) => { if (confirm('Yakin hapus aktivitas ini?')) { await deleteDoc(doc(db, "hubs", currentHubId, "events", id)); } };
+            async function handleAktivitasSubmit(e) {
+                e.preventDefault();
+                const form = e.target;
+                const date = new Date(document.getElementById('aktivitas-tanggal').value);
+                date.setUTCHours(12);
+                const newEvent = {
+                    nama: document.getElementById('aktivitas-nama').value,
+                    tanggal: Timestamp.fromDate(date),
+                    waktu: document.getElementById('aktivitas-waktu').value,
+                    deskripsi: document.getElementById('aktivitas-deskripsi').value,
+                    ikut: { lukman: document.getElementById('aktivitas-ikut-lukman').checked, destry: document.getElementById('aktivitas-ikut-destry').checked },
+                    createdAt: serverTimestamp()
+                };
+                try { await addDoc(collection(db, "hubs", currentHubId, "events"), newEvent); closeModal('modal-aktivitas'); form.reset(); }
+                catch (error) { console.error("Error adding event:", error); alert("Gagal menyimpan aktivitas."); }
+            }
+
+            async function handleHabitSubmit(e) { e.preventDefault(); const name = document.getElementById('habit-nama').value.trim(); if (!name) return; try { await addDoc(collection(db, "hubs", currentHubId, "habits"), { name: name, createdAt: serverTimestamp() }); closeModal('modal-habit'); e.target.reset(); } catch (error) { console.error("Error adding habit: ", error); } }
+            async function renderHabitTable() {
+                if (!currentHubId) return;
+                document.getElementById('habit-month-year').textContent = habitDate.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                const container = document.getElementById('habit-table-container');
+                container.innerHTML = '<div class="loader mx-auto"></div>';
+                const habitsQuery = query(collection(db, "hubs", currentHubId, "habits"), orderBy("name"));
+                const habitsSnapshot = await getDocs(habitsQuery);
+                const habits = habitsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const year = habitDate.getFullYear();
+                const month = habitDate.getMonth();
+                const startDate = new Date(year, month, 1);
+                const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+                const entriesQuery = query(collection(db, "hubs", currentHubId, "habitEntries"), where("date", ">=", startDate), where("date", "<=", endDate));
+                const entriesSnapshot = await getDocs(entriesQuery);
+                const entriesMap = new Map();
+                entriesSnapshot.docs.forEach(doc => { const data = doc.data(); const dateKey = new Date(data.date.seconds * 1000).toISOString().split('T')[0]; entriesMap.set(dateKey, { id: doc.id, ...data }); });
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                let tableHTML = '<table class="habit-table"><thead><tr><th class="habit-name">Habit</th>';
+                for (let i = 1; i <= daysInMonth; i++) { tableHTML += `<th>${i}</th>`; }
+                tableHTML += '</tr></thead><tbody>';
+                if (habits.length === 0) { tableHTML += `<tr><td colspan="${daysInMonth + 1}" class="text-center p-8 text-gray-500">Belum ada habit. Tambahkan satu!</td></tr>`; } 
+                else {
+                    habits.forEach(habit => {
+                        tableHTML += `<tr><td class="habit-name" title="${habit.name}">${habit.name}</td>`;
+                        for (let day = 1; day <= daysInMonth; day++) {
+                            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            const entry = entriesMap.get(dateKey);
+                            const status = entry?.statuses?.[habit.id] || { lukman: false, destry: false };
+                            let statusClass = 'status-none';
+                            if (status.lukman && status.destry) statusClass = 'status-both';
+                            else if (status.lukman) statusClass = 'status-lukman';
+                            else if (status.destry) statusClass = 'status-destry';
+                            tableHTML += `<td><div class="habit-day-cell ${statusClass}" onclick="cycleHabitStatus('${habit.id}', '${dateKey}')"></div></td>`;
+                        }
+                        tableHTML += '</tr>';
+                    });
+                }
+                tableHTML += '</tbody></table>';
+                container.innerHTML = tableHTML;
+            }
+            window.cycleHabitStatus = async (habitId, dateKey) => {
+                const date = new Date(dateKey);
+                date.setUTCHours(12);
+                const entryDocId = dateKey;
+                const entryRef = doc(db, "hubs", currentHubId, "habitEntries", entryDocId);
+                const entrySnap = await getDoc(entryRef);
+                const currentStatuses = entrySnap.exists() ? entrySnap.data().statuses : {};
+                const currentStatus = currentStatuses[habitId] || { lukman: false, destry: false };
+                let nextStatus = { lukman: false, destry: false };
+                if (!currentStatus.lukman && !currentStatus.destry) { nextStatus = { lukman: true, destry: false }; } 
+                else if (currentStatus.lukman && !currentStatus.destry) { nextStatus = { lukman: false, destry: true }; } 
+                else if (!currentStatus.lukman && currentStatus.destry) { nextStatus = { lukman: true, destry: true }; }
+                const newStatuses = { ...currentStatuses, [habitId]: nextStatus };
+                try { await setDoc(entryRef, { date: Timestamp.fromDate(date), statuses: newStatuses }, { merge: true }); } catch (error) { console.error("Error updating habit status: ", error); }
+            };
+            function setupImagePreview(inputId, previewId) { const input = document.getElementById(inputId); const preview = document.getElementById(previewId); input.addEventListener('change', () => { const file = input.files[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { preview.src = e.target.result; preview.classList.remove('hidden'); }; reader.readAsDataURL(file); } else { preview.src = ''; preview.classList.add('hidden'); } }); }
+            
+            // Initial setup
+            setupAuthEventListeners();
         }
-        window.cycleHabitStatus = async (habitId, dateKey) => {
-            const date = new Date(dateKey);
-            date.setHours(12);
-            const entryDocId = dateKey;
-            const entryRef = doc(db, "hubs", currentHubId, "habitEntries", entryDocId);
-            const entrySnap = await getDoc(entryRef);
-            const currentStatuses = entrySnap.exists() ? entrySnap.data().statuses : {};
-            const currentStatus = currentStatuses[habitId] || { lukman: false, destry: false };
-            let nextStatus = { lukman: false, destry: false };
-            if (!currentStatus.lukman && !currentStatus.destry) { nextStatus = { lukman: true, destry: false }; } 
-            else if (currentStatus.lukman && !currentStatus.destry) { nextStatus = { lukman: false, destry: true }; } 
-            else if (!currentStatus.lukman && currentStatus.destry) { nextStatus = { lukman: true, destry: true }; }
-            const newStatuses = { ...currentStatuses, [habitId]: nextStatus };
-            try { await setDoc(entryRef, { date: Timestamp.fromDate(date), statuses: newStatuses }, { merge: true }); } catch (error) { console.error("Error updating habit status: ", error); }
-        };
-        async function handleHabitSubmit(e) { e.preventDefault(); const name = document.getElementById('habit-nama').value.trim(); if (!name) return; try { await addDoc(collection(db, "hubs", currentHubId, "habits"), { name: name, createdAt: serverTimestamp() }); closeModal('modal-habit'); e.target.reset(); } catch (error) { console.error("Error adding habit: ", error); } }
-        
-        function setupImagePreview(inputId, previewId) { const input = document.getElementById(inputId); const preview = document.getElementById(previewId); input.addEventListener('change', () => { const file = input.files[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { preview.src = e.target.result; preview.classList.remove('hidden'); }; reader.readAsDataURL(file); } else { preview.src = ''; preview.classList.add('hidden'); } }); }
-        async function renderKeuangan() { /* Full implementation needed */ }
-        async function renderTabungan() { /* Full implementation needed */ }
-        async function renderDiary() { /* Full implementation needed */ }
-        async function renderWishlist() { /* Full implementation needed */ }
-        async function renderCalendar() { /* Full implementation needed */ }
-        function changeCalendarMonth(delta) { calendarDate.setMonth(calendarDate.getMonth() + delta); renderCalendar(); }
-        async function renderDashboard() { /* Full implementation needed */ }
-        async function handleTransaksiSubmit(e) { e.preventDefault(); /* Full implementation needed */ }
-        async function handleTabunganSubmit(e) { e.preventDefault(); /* Full implementation needed */ }
-        async function handleTambahDanaSubmit(e) { e.preventDefault(); /* Full implementation needed */ }
-        async function handleDiarySubmit(e) { e.preventDefault(); /* Full implementation needed */ }
-        async function handleWishlistSubmit(e) { e.preventDefault(); /* Full implementation needed */ }
-        async function handleAktivitasSubmit(e) { e.preventDefault(); /* Full implementation needed */ }
-        
-        document.addEventListener('DOMContentLoaded', () => { /* onAuthStateChanged handles init */ });
+
+        document.addEventListener('DOMContentLoaded', mainApp);
     </script>
 </body>
 </html>
