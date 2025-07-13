@@ -2,7 +2,6 @@
 <html lang="id" class="">
 <head>
     <meta charset="UTF-8">
-    <!-- META TAG BARU UNTUK CONTENT SECURITY POLICY (CSP) -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self'; 
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net/npm/chart.js https://www.gstatic.com/firebasejs/; 
@@ -13,7 +12,7 @@
         frame-src 'self' https://*.firebaseapp.com;
     ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Hub v2.7 | Lukman & Destry</title>
+    <title>Life Hub v2.8 (Diagnostic) | Lukman & Destry</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -431,16 +430,16 @@
             async function handleRegister(e) { e.preventDefault(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; if (password.length < 6) { errorEl.textContent = "Password minimal 6 karakter."; return; } try { await createUserWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Register Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
             async function handleLogout() { if(confirm('Anda yakin ingin logout?')) await signOut(auth); }
             async function createHub() { 
-                console.log("Mencoba membuat Hub...");
+                if (!currentUser) {
+                    alert("Error: Pengguna tidak ditemukan (currentUser is null). Silakan coba login ulang.");
+                    return;
+                }
                 const hubId = doc(collection(db, 'hubs')).id; 
                 try { 
                     const batch = writeBatch(db); 
                     batch.set(doc(db, "hubs", hubId), { members: [currentUser.uid], createdAt: serverTimestamp() }); 
                     batch.set(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); 
                     await batch.commit(); 
-                    console.log("Hub berhasil dibuat dengan ID:", hubId);
-                    currentHubId = hubId; 
-                    initializeAppUI(); 
                 } catch (error) { 
                     console.error("Create Hub Error:", error); 
                     alert(`Gagal membuat hub. Pesan error dari Firebase: ${error.message}`);
