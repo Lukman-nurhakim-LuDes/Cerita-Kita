@@ -2,8 +2,18 @@
 <html lang="id" class="">
 <head>
     <meta charset="UTF-8">
+    <!-- META TAG BARU UNTUK CONTENT SECURITY POLICY (CSP) -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self'; 
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net/npm/chart.js https://www.gstatic.com/firebasejs/; 
+        style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+        connect-src 'self' wss://*.firebaseio.com https://*.googleapis.com;
+        font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com;
+        img-src 'self' data: https://placehold.co;
+        frame-src 'self' https://*.firebaseapp.com;
+    ">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Hub v2.5 | Lukman & Destry</title>
+    <title>Life Hub v2.7 | Lukman & Destry</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -420,7 +430,23 @@
             async function handleLogin(e) { e.preventDefault(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; try { await signInWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Login Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
             async function handleRegister(e) { e.preventDefault(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const errorEl = document.getElementById('auth-error'); errorEl.textContent = ''; if (password.length < 6) { errorEl.textContent = "Password minimal 6 karakter."; return; } try { await createUserWithEmailAndPassword(auth, email, password); } catch (error) { console.error("Register Error:", error.code, error.message); errorEl.textContent = `Error: ${error.code}`; } }
             async function handleLogout() { if(confirm('Anda yakin ingin logout?')) await signOut(auth); }
-            async function createHub() { const hubId = doc(collection(db, 'hubs')).id; try { const batch = writeBatch(db); batch.set(doc(db, "hubs", hubId), { members: [currentUser.uid], createdAt: serverTimestamp() }); batch.set(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); await batch.commit(); currentHubId = hubId; initializeAppUI(); } catch (error) { console.error("Create Hub Error:", error); document.getElementById('hub-error').textContent = "Gagal membuat hub."; } }
+            async function createHub() { 
+                console.log("Mencoba membuat Hub...");
+                const hubId = doc(collection(db, 'hubs')).id; 
+                try { 
+                    const batch = writeBatch(db); 
+                    batch.set(doc(db, "hubs", hubId), { members: [currentUser.uid], createdAt: serverTimestamp() }); 
+                    batch.set(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); 
+                    await batch.commit(); 
+                    console.log("Hub berhasil dibuat dengan ID:", hubId);
+                    currentHubId = hubId; 
+                    initializeAppUI(); 
+                } catch (error) { 
+                    console.error("Create Hub Error:", error); 
+                    alert(`Gagal membuat hub. Pesan error dari Firebase: ${error.message}`);
+                    document.getElementById('hub-error').textContent = `Error: ${error.code}`; 
+                } 
+            }
             async function joinHub(e) { e.preventDefault(); const hubId = document.getElementById('join-hub-id').value.trim(); if (!hubId) return; const hubRef = doc(db, "hubs", hubId); const hubSnap = await getDoc(hubRef); if (hubSnap.exists()) { try { const members = hubSnap.data().members || []; if (members.includes(currentUser.uid)) {} else { await updateDoc(hubRef, { members: [...members, currentUser.uid] }); } await setDoc(doc(db, "users", currentUser.uid), { hubId: hubId }, { merge: true }); currentHubId = hubId; initializeAppUI(); } catch (error) { console.error("Join Hub Error:", error); document.getElementById('hub-error').textContent = "Gagal bergabung dengan hub."; } } else { document.getElementById('hub-error').textContent = "ID Hub tidak ditemukan."; } }
             
             window.copyHubId = () => { const hubId = document.getElementById('profile-hub-id').textContent; navigator.clipboard.writeText(hubId).then(() => alert('ID Hub disalin!')); };
@@ -492,7 +518,7 @@
                     return;
                 }
                 list.innerHTML = savings.map(s => {
-                    const progress = Math.min((s.terkumpul / s.target) * 100, 100);
+                    const progress = s.target > 0 ? Math.min((s.terkumpul / s.target) * 100, 100) : 0;
                     const progressColor = progress >= 100 ? 'bg-green-500' : 'bg-blue-500';
                     return `<div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md flex flex-col fade-in">
                         <div class="flex justify-between items-start">
@@ -515,8 +541,8 @@
                 const form = e.target;
                 const newTabungan = {
                     nama: document.getElementById('tabungan-nama').value,
-                    target: parseFloat(document.getElementById('tabungan-target').value),
-                    terkumpul: parseFloat(document.getElementById('tabungan-awal').value),
+                    target: parseFloat(document.getElementById('tabungan-target').value) || 0,
+                    terkumpul: parseFloat(document.getElementById('tabungan-awal').value) || 0,
                     oleh: document.getElementById('tabungan-oleh').value,
                     createdAt: serverTimestamp()
                 };
@@ -742,6 +768,47 @@
             };
             function setupImagePreview(inputId, previewId) { const input = document.getElementById(inputId); const preview = document.getElementById(previewId); input.addEventListener('change', () => { const file = input.files[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { preview.src = e.target.result; preview.classList.remove('hidden'); }; reader.readAsDataURL(file); } else { preview.src = ''; preview.classList.add('hidden'); } }); }
             
+            async function renderDashboard() {
+                if (!currentHubId) return;
+                const txQuery = query(collection(db, "hubs", currentHubId, "transactions"));
+                const savingsQuery = query(collection(db, "hubs", currentHubId, "savings"));
+                const diaryQuery = query(collection(db, "hubs", currentHubId, "diary"));
+                const habitsQuery = query(collection(db, "hubs", currentHubId, "habits"));
+                const habitEntriesQuery = query(collection(db, "hubs", currentHubId, "habitEntries"));
+                const [txSnap, savingsSnap, diarySnap, habitsSnap, habitEntriesSnap] = await Promise.all([getDocs(txQuery), getDocs(savingsQuery), getDocs(diaryQuery), getDocs(habitsQuery), getDocs(habitEntriesQuery)]);
+                const transactions = txSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                const savings = savingsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                const diary = diarySnap.docs.map(d => ({id: d.id, ...d.data()}));
+                const habits = habitsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                const habitEntries = habitEntriesSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                const saldo = transactions.reduce((acc, t) => t.kategori === 'Pemasukan' ? acc + t.jumlah : acc - t.jumlah, 0);
+                document.getElementById('dashboard-saldo').textContent = formatCurrency(saldo);
+                document.getElementById('dashboard-saldo').className = `text-3xl font-bold mt-2 ${saldo >= 0 ? 'text-green-500' : 'text-red-500'}`;
+                const totalTabungan = savings.reduce((acc, s) => acc + s.terkumpul, 0);
+                document.getElementById('dashboard-tabungan').textContent = formatCurrency(totalTabungan);
+                const todayISO = getTodayISO();
+                const todayDiary = diary.find(d => new Date(d.tanggal.seconds * 1000).toISOString().split('T')[0] === todayISO);
+                document.getElementById('dashboard-mood').textContent = todayDiary ? todayDiary.mood : '😶';
+                const todayHabitEntry = habitEntries.find(e => new Date(e.date.seconds * 1000).toISOString().split('T')[0] === todayISO);
+                let completed = 0;
+                const totalPossible = habits.length * 2;
+                if(todayHabitEntry && todayHabitEntry.statuses) {
+                    Object.values(todayHabitEntry.statuses).forEach(status => {
+                        if (status.lukman) completed++;
+                        if (status.destry) completed++;
+                    });
+                }
+                const completionPercent = totalPossible > 0 ? (completed / totalPossible) * 100 : 0;
+                document.getElementById('dashboard-habit-completion').textContent = `${completionPercent.toFixed(0)}%`;
+                const isDark = document.documentElement.classList.contains('dark');
+                const expenseData = transactions.filter(t => t.kategori !== 'Pemasukan').reduce((acc, t) => { acc[t.kategori] = (acc[t.kategori] || 0) + t.jumlah; return acc; }, {});
+                if (expenseChartInstance) expenseChartInstance.destroy();
+                expenseChartInstance = new Chart(document.getElementById('expenseChart'), {
+                    type: 'doughnut', data: { labels: Object.keys(expenseData), datasets: [{ data: Object.values(expenseData), backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'], borderColor: isDark ? '#1f2937' : '#ffffff', borderWidth: 4 }] },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: isDark ? '#e5e7eb' : '#374151' } } } }
+                });
+            }
+
             // Initial setup
             setupAuthEventListeners();
         }
